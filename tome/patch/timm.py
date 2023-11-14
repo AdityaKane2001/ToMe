@@ -14,7 +14,7 @@ from typing import Tuple
 import torch
 from timm.models.vision_transformer import Attention, Block, VisionTransformer
 
-from tome.merge import bipartite_soft_matching, merge_source, merge_wavg, linear_interpolation
+from tome.merge import attentive_bipartite_matching, bipartite_soft_matching, merge_source, merge_wavg, linear_interpolation
 from tome.utils import parse_r
 
 
@@ -34,7 +34,7 @@ class ToMeBlock(Block):
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         # Note: this is copied from timm.models.vision_transformer.Block with modifications.
         attn_size = self._tome_info["size"] if self._tome_info["prop_attn"] else None
-        x_attn, metric = self.attn(self.norm1(x), attn_size)
+        x_attn, metric, attnmap = self.attn(self.norm1(x), attn_size)
         x = x + self._drop_path1(x_attn)
 
         r = self._tome_info["r"].pop(0)
@@ -86,6 +86,7 @@ class ToMeAttention(Attention):
             attn = attn + size.log()[:, None, None, :, 0]
 
         attn = attn.softmax(dim=-1)
+        preserved_attn = attn
         attn = self.attn_drop(attn)
 
         x = (attn @ v).transpose(1, 2).reshape(B, N, C)
@@ -93,7 +94,7 @@ class ToMeAttention(Attention):
         x = self.proj_drop(x)
 
         # Return k as well here
-        return x, k.mean(1)
+        return x, k.mean(1), preserved_attn
 
 
 def make_tome_class(transformer_class):
