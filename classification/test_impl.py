@@ -10,7 +10,7 @@ import torch
 import sys
 
 from tome.merge import (
-    attentive_bipartite_matching
+    attentive_bipartite_matching, linear_interpolation
 )
 
 
@@ -55,18 +55,18 @@ class ToMeAttention(Attention):
         x = self.proj_drop(x)
 
         # Return k as well here
-        return x, k.mean(1), preserved_attn
+        return x
 
 
 tomeattn = ToMeAttention(dim=25, num_heads=5)
 
-a, k, attn = tomeattn(torch.rand(4, 10, 25))
+a = tomeattn(torch.rand(4, 10, 25))
 
 print(f"{a.shape = }")
-print(f"{k.shape = }")
-print(f"{attn.shape = }")
+# print(f"{k.shape = }")
+# print(f"{attn.shape = }")
 
-m, u = attentive_bipartite_matching(k, attn, r=10)
+m, u = linear_interpolation(r=5)
 
 out = m(a)
 print(out.shape)
