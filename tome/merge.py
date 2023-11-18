@@ -14,6 +14,59 @@ import torch
 def do_nothing(x, mode=None):
     return x
 
+def interpolate_sequence(seq, new_n):
+    return torch.nn.functional.interpolate(seq.permute(0, 2, 1), size=(new_n)).permute(0, 2, 1)
+
+
+def linear_interpolation(
+    r: int,
+    class_token: bool = False,
+    distill_token: bool = False,
+):
+    protected = 0
+    if class_token:
+        protected += 1
+    if distill_token:
+        protected += 1
+
+    # We can only reduce by a maximum of 50% tokens
+    if r <= 0:
+        return do_nothing, do_nothing
+    
+    def merge(x: torch.Tensor) -> torch.Tensor:
+        n = x.shape[1]
+        
+        if class_token:
+            clstok = x[:, 0, :]
+            start = 1
+        else:
+            clstok = None
+            start = 0
+        
+        if distill_token:
+            distok = x[:, -1, :]
+            end = -1
+        else:
+            distok = None
+            end = None
+        
+        if distok is not None:
+            x = interpolate_sequence(x[:, start:end], n - r)
+        else:
+            x = interpolate_sequence(x[:, start:], n - r)
+        
+        if clstok is not None:
+            x = torch.concat([clstok, x], dim=1)
+        
+        if distok is not None:
+            x = torch.concat([x, distok], dim=1)
+        
+        return x
+    
+    def unmerge(x: torch.Tensor) -> torch.Tensor:
+        pass
+    
+    return merge, unmerge
 
 def attentive_bipartite_matching(
     metric: torch.Tensor,
